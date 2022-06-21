@@ -35,15 +35,35 @@ class Node_Encoder(nn.Module):
         tmp_adj = []
         for i in range(len(nodes)):
             if uv == True:
-                tmp_history_uv.append(self.history_v_lists[int(nodes[i])])
-                tmp_history_r.append(self.history_vr_lists[int(nodes[i])])
-                tmp_adj.append(list(self.item_adj_lists[int(nodes[i])]))
+                # Handling empty lists
+                if int(nodes[i]) not in self.history_v_lists:
+                    tmp_history_uv.append([])
+                else:
+                    tmp_history_uv.append(self.history_v_lists[int(nodes[i])])
+                if int(nodes[i]) not in self.history_vr_lists:
+                    tmp_history_r.append([])
+                else:
+                    tmp_history_r.append(self.history_vr_lists[int(nodes[i])])
+                if int(nodes[i]) not in self.item_adj_lists:
+                    tmp_adj.append([])
+                else:
+                    tmp_adj.append(list(self.item_adj_lists[int(nodes[i])]))
                 self_feats = self.v2e.weight[nodes]
                 target_feats = self.u2e.weight[nodes_target]
             else :
-                tmp_history_uv.append(self.history_u_lists[int(nodes[i])])
-                tmp_history_r.append(self.history_ur_lists[int(nodes[i])])
-                tmp_adj.append(list(self.social_adj_lists[int(nodes[i])]))
+                # Handling empty lists
+                if int(nodes[i]) not in self.history_u_lists:
+                    tmp_history_uv.append([])
+                else:
+                    tmp_history_uv.append(self.history_u_lists[int(nodes[i])])
+                if int(nodes[i]) not in self.history_ur_lists:
+                    tmp_history_r.append([])
+                else:
+                    tmp_history_r.append(self.history_ur_lists[int(nodes[i])])
+                if int(nodes[i]) not in self.social_adj_lists:
+                    tmp_adj.append([])
+                else:
+                    tmp_adj.append(list(self.social_adj_lists[int(nodes[i])]))
                 self_feats = self.u2e.weight[nodes]
                 target_feats = self.v2e.weight[nodes_target]
         neigh_feats = self.aggregator.forward(self_feats, target_feats, tmp_history_uv, tmp_history_r, tmp_adj, uv, self.p)

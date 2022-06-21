@@ -36,7 +36,7 @@ class Node_Aggregator(nn.Module):
         query = self.linear(torch.cat((self_feats, target_feats), dim = -1))
         for i in range(len(history_uv)):
             history = history_uv[i]
-            num_histroy_item = len(history)
+            num_history_item = len(history)
             tmp_label = history_r[i]
 
             if uv is True:
@@ -44,17 +44,17 @@ class Node_Aggregator(nn.Module):
                 e_neighbor = self.v2e.weight[adj[i]]
                 e_uv = torch.cat((e_uv, e_neighbor), 0)
                 tmp_label += [self.relation_token] * len(adj[i])
-                num_histroy_item += len(adj[i])
+                num_history_item += len(adj[i])
 
             else:
                 e_uv = self.v2e.weight[history]
                 e_neighbor = self.u2e.weight[adj[i]]
                 e_uv = torch.cat((e_uv, e_neighbor), 0)
                 tmp_label += [self.relation_token] * len(adj[i])
-                num_histroy_item += len(adj[i])
+                num_history_item += len(adj[i])
 
             e_r = self.r2e.weight[tmp_label]
-            if num_histroy_item != 0:
+            if num_history_item != 0:
                 agg = self.neighbor_agg(query[i], e_uv, e_r, percent)
                 embed_matrix[i] = agg
 
