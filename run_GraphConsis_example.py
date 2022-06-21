@@ -169,6 +169,7 @@ def get_top_k_recommendations(model, device, dataset_name, target_users, history
 
 
 def evaluate_and_store_recommendations(model, device, dataset_name, train_u, test_u, history_u_lists, history_v_lists, k, use_test_set_candidates, test_v):
+    # target_users = list(set(train_u + test_u))
     target_users = list(set(test_u))
     results = get_top_k_recommendations(model, device, dataset_name, target_users, history_u_lists, history_v_lists, k, use_test_set_candidates, test_v)
 
@@ -183,10 +184,10 @@ def main():
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
+    parser.add_argument('--epochs', type=int, default=20, metavar='N', help='number of epochs to train')
     parser.add_argument('--device', type=str, default='cuda', help='cpu or cuda')
     parser.add_argument('--gpu_id', type=str, default='2', metavar='N', help='gpu id')
-    parser.add_argument('--dataset_name', type = str, default='ciao', help='dataset name')
+    parser.add_argument('--dataset_name', type = str, default='toy_dataset', help='dataset name')
     parser.add_argument('--load_model', type=bool, default=False, help='Load from checkpoint or not')
     parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight_decay')
     parser.add_argument('--use_test_set_candidates', type=bool, default=True, help='if this is True, then the candidate items come only from the test set')
