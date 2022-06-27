@@ -56,7 +56,7 @@ def test(model, device, test_loader):
     mae = mean_absolute_error(tmp_pred, target)
     return expected_rmse, mae
 
-def train_and_store_model(model, optimizer, epochs, device, train_loader, test_loader, dataset_name):
+def train_and_store_model(model, optimizer, epochs, device, train_loader, test_loader, dataset_name, val_loader=None):
     """
     ## toy dataset
     history_u_lists, history_ur_lists:  user's purchased history (item set in training set), and his/her rating score (dict)
@@ -78,7 +78,10 @@ def train_and_store_model(model, optimizer, epochs, device, train_loader, test_l
     for epoch in range(1, epochs + 1):
 
        train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae)
-       expected_rmse, mae = test(model, device, test_loader)
+       if val_loader is not None:
+           expected_rmse, mae = test(model, device, val_loader)
+       else:
+           expected_rmse, mae = test(model, device, test_loader)
        # please add the validation set to tune the hyper-parameters based on your datasets.
 
        if not os.path.exists('./checkpoint/' + dataset_name):
@@ -97,12 +100,25 @@ def train_and_store_model(model, optimizer, epochs, device, train_loader, test_l
            # torch.save(best_model.state_dict(), './checkpoint/' + dataset_name + '/model')
        else:
            endure_count += 1
-       print("rmse: %.4f, mae:%.4f " % (expected_rmse, mae))
+       if val_loader is not None:
+           print("rmse on validation set: %.4f, mae:%.4f " % (expected_rmse, mae))
+           test_rmse, test_mae = test(model, device, test_loader)
+           print('rmse on test set: %.4f, mae:%.4f ' % (test_rmse, test_mae))
+       else:
+           print('rmse on test set: %.4f, mae:%.4f ' % (expected_rmse, mae))
 
-       rmse_mae_dict = {
-           'rmse' : expected_rmse,
-           'mae' : mae
-       }
+       if val_loader is not None:
+           rmse_mae_dict = {
+               'val_rmse': expected_rmse,
+               'val_mae': mae,
+               'test_rmse': test_rmse,
+               'test_mae': test_mae
+           }
+       else:
+           rmse_mae_dict = {
+               'test_rmse': expected_rmse,
+               'test_mae': mae
+           }
 
        with open('./results/' + dataset_name + '/rmse_mae.pickle', 'wb') as handle:
            pickle.dump(rmse_mae_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -190,6 +206,7 @@ def main():
     parser.add_argument('--load_model', type=bool, default=True, help='Load from checkpoint or not')
     parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight_decay')
     parser.add_argument('--use_test_set_candidates', type=bool, default=True, help='if this is True, then the candidate items come only from the test set')
+    parser.add_argument('--validate', type=bool, default=True, help='if this is True, weights are optimized on the validation set')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
@@ -197,30 +214,33 @@ def main():
 
     train_filepath = './data/' + args.dataset_name + '/train.tsv'
     test_filepath = './data/' + args.dataset_name + '/test.tsv'
-    # val_filepath = './data/' + args.dataset_name + '/val.tsv'
     social_connections_filepath = './data/' + args.dataset_name + '/filtered_social_connections.tsv'
     train_dict = utils.create_user_item_rating_dict_from_file(train_filepath)
     test_dict = utils.create_user_item_rating_dict_from_file(test_filepath)
-    # val_dict = utils.create_user_item_rating_dict_from_file(val_filepath)
     social_adj_lists = utils.create_social_adj_lists(social_connections_filepath)
+    if args.validate == True:
+        val_filepath = './data/' + args.dataset_name + '/val.tsv'
+        val_dict = utils.create_user_item_rating_dict_from_file(val_filepath)
 
-    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
-    item_adj_lists, ratings_list = utils.preprocess_data_test(train_dict, test_dict)
-
-    # history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
-    # val_u, val_v, val_r, item_adj_lists, ratings_list = utils.preprocess_data_val(train_dict, test_dict, val_dict)
+    if args.validate == True:
+        history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
+        val_u, val_v, val_r, item_adj_lists, ratings_list = utils.preprocess_data_val(train_dict, test_dict, val_dict)
+    else:
+        history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
+        item_adj_lists, ratings_list = utils.preprocess_data_test(train_dict, test_dict)
 
 
 
     trainset = torch.utils.data.TensorDataset(torch.LongTensor(train_u), torch.LongTensor(train_v),
                                               torch.FloatTensor(train_r))
-    # validset = torch.utils.data.TensorDataset(torch.LongTensor(valid_u), torch.LongTensor(valid_v),
-    #                                           torch.FloatTensor(valid_r))
     testset = torch.utils.data.TensorDataset(torch.LongTensor(test_u), torch.LongTensor(test_v),
                                              torch.FloatTensor(test_r))
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
-    # valid_loader = torch.utils.data.DataLoader(validset, batch_size=args.test_batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=True)
+    if args.validate == True:
+        valset = torch.utils.data.TensorDataset(torch.LongTensor(val_u), torch.LongTensor(val_v),
+                                                 torch.FloatTensor(val_r))
+        val_loader = torch.utils.data.DataLoader(valset, batch_size=args.test_batch_size, shuffle=True)
     # num_users = history_u_lists.__len__()
     # num_items = history_v_lists.__len__()
     num_users = max(set(train_u + test_u)) + 1
@@ -244,7 +264,10 @@ def main():
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     else:
-        train_and_store_model(model, optimizer, args.epochs, device, train_loader, test_loader, args.dataset_name)
+        if args.validate == True:
+            train_and_store_model(model, optimizer, args.epochs, device, train_loader, test_loader, args.dataset_name, val_loader)
+        else:
+            train_and_store_model(model, optimizer, args.epochs, device, train_loader, test_loader, args.dataset_name)
 
     model.eval()
 
