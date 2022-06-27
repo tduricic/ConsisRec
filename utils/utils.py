@@ -12,9 +12,9 @@ def create_user_item_bipartite_graph(user_items_dict):
 
     for user_id in user_items_dict:
         for item_id in user_items_dict[user_id]:
-            users.add(user_id)
-            items.add(item_id)
-            edges.append((user_id, item_id))
+            users.add('user_id_' + str(user_id))
+            items.add('item_id_' + str(item_id))
+            edges.append(('user_id_' + str(user_id), 'item_id_' + str(item_id)))
 
     B = nx.Graph()
     B.add_nodes_from(users, bipartite=0)
@@ -26,7 +26,11 @@ def create_user_item_bipartite_graph(user_items_dict):
 
 def create_user_communities_interaction_dict(B, items, user_items_dict):
     projected_G = bipartite.projected_graph(B, items)
-    item_community_dict = community_louvain.best_partition(projected_G)
+    item_community_dict_tmp = community_louvain.best_partition(projected_G)
+    item_community_dict = {}
+    for node_id in item_community_dict_tmp:
+        item_id = int(node_id.replace('item_id_', ''))
+        item_community_dict[item_id] = item_community_dict_tmp[node_id]
     community_lists = {}
     for key in item_community_dict:
         if item_community_dict[key] not in community_lists:
