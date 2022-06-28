@@ -133,10 +133,12 @@ def get_top_k_recommendations(model, device, dataset_name, target_users, history
     user_communities_interactions_dict_filepath = './results/' + dataset_name + '/user_communities_interactions_dict.pickle'
     item_community_dict_filepath = './results/' + dataset_name + '/item_community_dict.pickle'
 
-    if path.exists('./results/' + dataset_name + '/user_communities_interactions_dict.pickle') and \
-            path.exists('./results/' + dataset_name + '/item_community_dict.pickle'):
-        user_communities_interactions_dict = pickle.load(user_communities_interactions_dict_filepath)
-        item_community_dict = pickle.load(item_community_dict_filepath)
+    if path.exists(user_communities_interactions_dict_filepath) and \
+            path.exists(item_community_dict_filepath):
+        with open(user_communities_interactions_dict_filepath, 'rb') as pickle_file:
+            user_communities_interactions_dict = pickle.load(pickle_file)
+        with open(item_community_dict_filepath, 'rb') as pickle_file:
+            item_community_dict = pickle.load(pickle_file)
     else:
         user_communities_interactions_dict, item_community_dict = utils.create_user_communities_interaction_dict(B, items, history_u_lists)
         with open(user_communities_interactions_dict_filepath, 'wb') as handle:
@@ -168,7 +170,10 @@ def get_top_k_recommendations(model, device, dataset_name, target_users, history
             user_item_communities = [item_community_dict[item_id] for item_id in history_u_lists[user_id]]
             user_diversity = utils.entropy_label_distribution(user_item_communities)
 
-            recommended_item_communities = [item_community_dict[item_id] for item_id in topk_item_ids]
+            recommended_item_communities = []
+            for item_id in topk_item_ids:
+                if item_id in item_community_dict:
+                    recommended_item_communities.append(item_community_dict[item_id])
             entropy_item_diversity = utils.entropy_label_distribution(recommended_item_communities)
             weighted_average_item_diversity = utils.calculate_weighted_average_diversity(user_communities_interactions_dict[user_id])
 
@@ -198,11 +203,11 @@ def main():
     parser.add_argument('--embed_dim', type=int, default=64, metavar='N', help='embedding size')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
-    parser.add_argument('--epochs', type=int, default=20, metavar='N', help='number of epochs to train')
+    parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
     parser.add_argument('--device', type=str, default='cuda', help='cpu or cuda')
     parser.add_argument('--gpu_id', type=str, default='2', metavar='N', help='gpu id')
-    parser.add_argument('--dataset_name', type = str, default='ciao', help='dataset name')
-    parser.add_argument('--k', type=int, default=10, metavar='N', help='number of recommendations to generate per user')
+    parser.add_argument('--dataset_name', type = str, default='toy_dataset', help='dataset name')
+    parser.add_argument('--k', type=int, default=20, metavar='N', help='number of recommendations to generate per user')
     parser.add_argument('--load_model', type=bool, default=True, help='Load from checkpoint or not')
     parser.add_argument('--weight_decay', type=float, default=0.0001, help='weight_decay')
     parser.add_argument('--use_test_set_candidates', type=bool, default=True, help='if this is True, then the candidate items come only from the test set')
@@ -214,13 +219,22 @@ def main():
 
     train_filepath = './data/' + args.dataset_name + '/train.tsv'
     test_filepath = './data/' + args.dataset_name + '/test.tsv'
+    val_filepath = './data/' + args.dataset_name + '/val.tsv'
+
     social_connections_filepath = './data/' + args.dataset_name + '/filtered_social_connections.tsv'
     train_dict = utils.create_user_item_rating_dict_from_file(train_filepath)
     test_dict = utils.create_user_item_rating_dict_from_file(test_filepath)
+    val_dict = utils.create_user_item_rating_dict_from_file(val_filepath)
+
+    if args.validate == False:
+        for user_id in val_dict:
+            if user_id not in train_dict:
+                train_dict[user_id] = val_dict[user_id]
+            else:
+                for item_id in val_dict[user_id]:
+                    train_dict[user_id][item_id] = val_dict[user_id][item_id]
+
     social_adj_lists = utils.create_social_adj_lists(social_connections_filepath)
-    if args.validate == True:
-        val_filepath = './data/' + args.dataset_name + '/val.tsv'
-        val_dict = utils.create_user_item_rating_dict_from_file(val_filepath)
 
     if args.validate == True:
         history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
@@ -228,7 +242,6 @@ def main():
     else:
         history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, \
         item_adj_lists, ratings_list = utils.preprocess_data_test(train_dict, test_dict)
-
 
 
     trainset = torch.utils.data.TensorDataset(torch.LongTensor(train_u), torch.LongTensor(train_v),
